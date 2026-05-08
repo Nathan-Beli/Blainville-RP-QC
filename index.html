@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Blainville RP QC | Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="dashboard-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#home" data-link="home" aria-label="Accueil Blainville RP QC">
+          <img
+            src="https://cdn.discordapp.com/icons/1482748692711866399/4ea08e27c0fd512cdbd59a882855e31a.png?size=2048"
+            alt="Logo Blainville RP QC"
+          />
+          <span>
+            <strong>Blainville RP QC</strong>
+            <small>Dashboard RP</small>
+          </span>
+        </a>
+
+        <nav id="moduleNav" class="module-nav" aria-label="Modules du dashboard"></nav>
+
+        <section class="sidebar-panel">
+          <p class="panel-label">Etat general</p>
+          <strong>Prototype visuel</strong>
+          <span>Systemes en developpement</span>
+        </section>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="kicker">Serveur RP Quebec</p>
+            <h1>Centre de gestion Blainville RP QC</h1>
+          </div>
+          <div class="profile-chip">
+            <span class="status-dot"></span>
+            <div>
+              <strong>Joueur connecte</strong>
+              <small>Citoyen | Aucun acces staff</small>
+            </div>
+          </div>
+        </header>
+
+        <section id="hero" class="hero">
+          <div class="hero-copy">
+            <p class="kicker">Dashboard complet</p>
+            <h2>Banque, factures, entreprises, prets, permis, jobs, vehicules et staff panel.</h2>
+            <p>
+              Tous les modules sont affiches en mode maquette. Les actions sont visuelles et seront branchees plus tard.
+            </p>
+          </div>
+          <div class="hero-stats" aria-label="Resume joueur">
+            <article>
+              <span>Argent perso</span>
+              <strong>0 $</strong>
+            </article>
+            <article>
+              <span>Entreprise</span>
+              <strong>Aucune</strong>
+            </article>
+            <article>
+              <span>Role</span>
+              <strong>Citoyen</strong>
+            </article>
+          </div>
+        </section>
+
+        <section id="home" class="module-section"></section>
+        <section id="bank" class="module-section"></section>
+        <section id="invoices" class="module-section"></section>
+        <section id="business" class="module-section"></section>
+        <section id="loans" class="module-section"></section>
+        <section id="permit-passage" class="module-section"></section>
+        <section id="my-permit" class="module-section"></section>
+        <section id="jobs" class="module-section"></section>
+        <section id="vehicles" class="module-section"></section>
+        <section id="market" class="module-section"></section>
+        <section id="staff" class="module-section"></section>
+        <section id="system" class="module-section"></section>
+        <section id="social" class="module-section"></section>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
