@@ -174,10 +174,12 @@ const erlcVehicles = [
 
 let activeModule = "home";
 let state = loadState();
+let autoSyncTimer = null;
+let autoSyncInProgress = false;
 let dashboardConfig = {
   clientId: "",
   guildId: "",
-  apiBaseUrl: "http://127.0.0.1:4174",
+  apiBaseUrl: "",
 };
 
 ensureDashboardDom();
@@ -277,7 +279,9 @@ function empty(text) {
 }
 
 function getVisibleModules() {
-  return state.session.dashboardRole === "staff" ? modules : modules.filter((module) => module.id !== "staff");
+  if (state.session.dashboardRole === "staff") return modules;
+  if (state.session.dashboardRole === "police") return modules.filter((module) => module.id !== "staff");
+  return modules.filter((module) => module.id !== "staff" && module.id !== "police");
 }
 
 function renderNav() {
@@ -298,9 +302,19 @@ function getRedirectUri() {
   return `${window.location.origin}${window.location.pathname}`;
 }
 
-function buildDiscordLoginUrl() {
+async function buildDiscordLoginUrl() {
+  if (!dashboardConfig.clientId) {
+    await loadDashboardConfig();
+  }
+
   const redirectUri = getRedirectUri();
-  if (!redirectUri || !dashboardConfig.clientId) return "";
+  if (!redirectUri) {
+    throw new Error("Tu dois ouvrir le dashboard avec l'URL hebergee ou http://127.0.0.1:4173/index.html, pas en file://.");
+  }
+
+  if (!dashboardConfig.clientId) {
+    throw new Error("CLIENT_ID est absent. Verifie le .env du dashboard et relance start-dashboard.bat.");
+  }
 
   const oauthState = crypto.randomUUID();
   sessionStorage.setItem(discordStateKey, oauthState);
@@ -328,22 +342,26 @@ async function loadDashboardConfig() {
     dashboardConfig = {
       clientId: config.clientId || "",
       guildId: config.guildId || "",
-      apiBaseUrl: config.apiBaseUrl || "http://127.0.0.1:4174",
+      apiBaseUrl: config.apiBaseUrl || "",
     };
+    state.salaryRoles = config.salaryRoles || state.salaryRoles;
+    saveState();
 
-    try {
-      const botResponse = await fetch(`${dashboardConfig.apiBaseUrl}/api/dashboard/config`);
-      const botConfig = await botResponse.json();
-      state.salaryRoles = botConfig.salaryRoles || state.salaryRoles;
-      saveState();
-    } catch {
-      // Le dashboard reste utilisable meme si le bot n'est pas encore pret.
+    if (dashboardConfig.apiBaseUrl) {
+      try {
+        const botResponse = await fetch(`${dashboardConfig.apiBaseUrl}/api/dashboard/config`);
+        const botConfig = await botResponse.json();
+        state.salaryRoles = botConfig.salaryRoles || state.salaryRoles;
+        saveState();
+      } catch {
+        // Le dashboard reste utilisable meme si le bot n'est pas encore pret.
+      }
     }
   } catch {
     dashboardConfig = {
       clientId: "",
       guildId: "",
-      apiBaseUrl: "http://127.0.0.1:4174",
+      apiBaseUrl: "",
     };
   }
 }
@@ -480,16 +498,28 @@ async function syncPoliceEvents() {
 
 function updateAuthUi() {
   const connected = Boolean(state.session.userId);
+  const roleLabel = getRoleLabel(state.session.dashboardRole);
   profileName.textContent = connected ? state.session.displayName || state.session.username : "Non connecte";
   profileRole.textContent = connected
-    ? `${state.session.dashboardRole === "staff" ? "Staff" : "Citoyen"} | ${money(state.session.salary?.amount || 0)} / jour`
+    ? `${roleLabel} | ${money(state.session.salary?.amount || 0)} / jour`
     : "Connexion Discord requise";
   discordLoginBtn.classList.toggle("is-hidden", connected);
   syncDiscordBtn.classList.toggle("is-hidden", !connected);
   logoutBtn.classList.toggle("is-hidden", !connected);
   heroBalance.textContent = money(state.balance);
   heroBusiness.textContent = state.businesses[0]?.name || "Aucune";
-  heroRole.textContent = connected ? (state.session.dashboardRole === "staff" ? "Staff" : "Citoyen") : "Invite";
+  heroRole.textContent = connected ? roleLabel : "Invite";
+}
+
+function getRoleLabel(role) {
+  const labels = {
+    staff: "Staff",
+    police: "Police",
+    citoyen: "Citoyen",
+    guest: "Invite",
+  };
+
+  return labels[role] || "Citoyen";
 }
 
 function renderMembersSidebar() {
@@ -611,7 +641,7 @@ function renderBank() {
       <article class="quick-card"><span class="stat-label">Compte personnel</span><strong>${money(state.balance)}</strong></article>
       <article class="quick-card"><span class="stat-label">Salaire</span><strong>${money(state.session.salary?.amount || 0)}</strong></article>
       <article class="quick-card"><span class="stat-label">Transactions</span><strong>${state.transactions.length}</strong></article>
-      <article class="quick-card"><span class="stat-label">API banque</span><strong>${dashboardConfig.apiBaseUrl.includes("4174") ? "Locale" : "Serveur"}</strong></article>
+      <article class="quick-card"><span class="stat-label">API banque</span><strong>${dashboardConfig.apiBaseUrl ? "Externe" : "Meme domaine"}</strong></article>
     </div>
     <div class="wide-grid">
       <form class="form-preview" data-form="bank-transfer">
@@ -868,6 +898,20 @@ function renderMarket() {
 }
 
 function renderPolice() {
+  if (state.session.dashboardRole !== "staff" && state.session.dashboardRole !== "police") {
+    sections.police.innerHTML = `
+      <div class="section-header">
+        <div>
+          <h3>Police</h3>
+          <p>Acces reserve aux roles police Discord.</p>
+        </div>
+        <span class="dev-badge">Verrouille</span>
+      </div>
+      ${empty("Ton role Discord doit etre synchronise avec le site pour acceder a cette categorie.")}
+    `;
+    return;
+  }
+
   sections.police.innerHTML = `
     <div class="section-header">
       <div>
@@ -955,7 +999,7 @@ function renderSystem() {
     </div>
     <div class="content-grid">
       ${card("Hebergement", "Le fichier start-dashboard.bat lance le site et demarre le bot avec le .env du dashboard.")}
-      ${card("API Discord", `API bot: ${dashboardConfig.apiBaseUrl}. Client Discord: ${dashboardConfig.clientId || "non charge"}.`)}
+      ${card("API Discord", `API bot: ${dashboardConfig.apiBaseUrl || "meme domaine"}. Client Discord: ${dashboardConfig.clientId || "non charge"}.`)}
       ${card("Sauvegarde", "Les donnees visuelles sont gardees dans le navigateur.", `<div class="actions"><button class="visual-btn" data-action="reset-data" type="button">Remettre a zero</button></div>`)}
     </div>
   `;
@@ -1169,15 +1213,17 @@ function bindActions() {
     renderAll();
   });
 
-  discordLoginBtn.onclick = () => {
-    const loginUrl = buildDiscordLoginUrl();
-    if (!loginUrl) {
-      addNotification("Discord", "Ouvre le dashboard avec start-dashboard.bat et verifie CLIENT_ID dans .env.");
+  discordLoginBtn.onclick = async () => {
+    try {
+      const loginUrl = await buildDiscordLoginUrl();
+      window.location.href = loginUrl;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Connexion Discord impossible.";
+      addNotification("Discord", message);
       saveState();
       renderAll();
-      return;
+      alert(message);
     }
-    window.location.href = loginUrl;
   };
 
   syncDiscordBtn.onclick = async () => {
@@ -1235,8 +1281,38 @@ if (memberSearch) {
   memberSearch.oninput = renderMembersSidebar;
 }
 
+async function autoSyncDiscordRoles() {
+  if (autoSyncInProgress || !state.session.userId) return;
+  autoSyncInProgress = true;
+
+  try {
+    await syncDiscordProfile();
+    await syncMembers();
+    await syncPoliceEvents();
+    renderAll();
+  } catch {
+    // La prochaine sync retentera automatiquement.
+  } finally {
+    autoSyncInProgress = false;
+  }
+}
+
+function startAutoRoleSync() {
+  if (autoSyncTimer) clearInterval(autoSyncTimer);
+  autoSyncTimer = setInterval(autoSyncDiscordRoles, 60000);
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      autoSyncDiscordRoles();
+    }
+  });
+
+  window.addEventListener("focus", autoSyncDiscordRoles);
+}
+
 async function init() {
   renderAll();
+  startAutoRoleSync();
 
   try {
     await loadDashboardConfig();

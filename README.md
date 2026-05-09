@@ -28,9 +28,10 @@ GUILD_ID=id_du_serveur
 Options:
 
 ```env
-DASHBOARD_HOST=127.0.0.1
+DASHBOARD_HOST=0.0.0.0
 DASHBOARD_PORT=4173
 DASHBOARD_API_URL=http://127.0.0.1:4174
+DASHBOARD_PUBLIC_API_URL=
 DASHBOARD_START_BOT=true
 ```
 
@@ -48,6 +49,24 @@ Pour partager le projet:
 4. ne mets jamais `DISCORD_TOKEN` dans `app.js`, `index.html` ou un fichier public.
 
 Si tu as deja pousse un token sur GitHub, regenere le token du bot dans Discord Developer Portal.
+
+## Hebergement
+
+Sur un hebergeur, configure la commande de demarrage:
+
+```bash
+npm start
+```
+
+Le serveur utilise automatiquement `PORT` si l'hebergeur le fournit.
+
+Pour Discord OAuth, ajoute aussi l'URL hebergee exacte dans le portail Discord, par exemple:
+
+```txt
+https://ton-domaine.com/index.html
+```
+
+Laisse `DASHBOARD_PUBLIC_API_URL` vide si le bot est lance par le meme serveur dashboard. Le navigateur utilisera le meme domaine que le site, ce qui evite les problemes avec `127.0.0.1`.
 
 ## Discord Developer Portal
 

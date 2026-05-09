@@ -41,9 +41,10 @@ function loadEnvFile(filePath) {
 const dashboardEnv = loadEnvFile(dashboardEnvPath);
 Object.assign(process.env, dashboardEnv);
 
-const host = process.env.DASHBOARD_HOST || "127.0.0.1";
-const port = Number(process.env.DASHBOARD_PORT || 4173);
-const apiUrl = process.env.DASHBOARD_API_URL || "http://127.0.0.1:4174";
+const host = process.env.DASHBOARD_HOST || "0.0.0.0";
+const port = Number(process.env.PORT || process.env.DASHBOARD_PORT || 4173);
+const botApiUrl = process.env.DASHBOARD_BOT_API_URL || process.env.DASHBOARD_API_URL || "http://127.0.0.1:4174";
+const publicApiUrl = process.env.DASHBOARD_PUBLIC_API_URL || "";
 
 function startBot() {
   if (process.env.DASHBOARD_START_BOT === "false") return;
@@ -75,6 +76,45 @@ function sendJson(response, statusCode, payload) {
   response.end(JSON.stringify(payload));
 }
 
+function readRequestBody(request) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+
+    request.on("data", (chunk) => chunks.push(chunk));
+    request.on("end", () => resolve(Buffer.concat(chunks)));
+    request.on("error", reject);
+  });
+}
+
+async function proxyBotApi(request, response, requestUrl) {
+  const targetUrl = new URL(requestUrl.pathname + requestUrl.search, botApiUrl);
+  const body = request.method === "GET" || request.method === "HEAD" ? undefined : await readRequestBody(request);
+  const botResponse = await fetch(targetUrl, {
+    method: request.method,
+    headers: {
+      "Content-Type": request.headers["content-type"] || "application/json",
+    },
+    body,
+  });
+
+  response.writeHead(botResponse.status, {
+    "Content-Type": botResponse.headers.get("content-type") || "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+  });
+  response.end(Buffer.from(await botResponse.arrayBuffer()));
+}
+
+async function getSalaryRolesFromBot() {
+  try {
+    const response = await fetch(new URL("/api/dashboard/config", botApiUrl));
+    if (!response.ok) return [];
+    const payload = await response.json();
+    return payload.salaryRoles || [];
+  } catch {
+    return [];
+  }
+}
+
 const server = createServer(async (request, response) => {
   try {
     const requestUrl = new URL(request.url, `http://${host}:${port}`);
@@ -83,8 +123,14 @@ const server = createServer(async (request, response) => {
       sendJson(response, 200, {
         clientId: process.env.CLIENT_ID || "",
         guildId: process.env.GUILD_ID || "",
-        apiBaseUrl: process.env.DASHBOARD_API_URL || apiUrl,
+        apiBaseUrl: publicApiUrl,
+        salaryRoles: await getSalaryRolesFromBot(),
       });
+      return;
+    }
+
+    if (requestUrl.pathname.startsWith("/api/dashboard/")) {
+      await proxyBotApi(request, response, requestUrl);
       return;
     }
 
