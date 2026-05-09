@@ -286,7 +286,10 @@ function buildDiscordLoginUrl() {
 
 async function loadDashboardConfig() {
   try {
-    const response = await fetch("/api/dashboard/config");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const response = await fetch("/api/dashboard/config", { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (!response.ok) throw new Error("Config dashboard indisponible.");
     const config = await response.json();
     dashboardConfig = {
@@ -313,18 +316,32 @@ async function loadDashboardConfig() {
 }
 
 async function apiFetch(path, options = {}) {
-  const response = await fetch(`${dashboardConfig.apiBaseUrl}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-    ...options,
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok === false) {
-    throw new Error(payload.reason || "Action API impossible.");
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2500);
+
+  try {
+    const response = await fetch(`${dashboardConfig.apiBaseUrl}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+      signal: options.signal || controller.signal,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.ok === false) {
+      throw new Error(payload.reason || "Action API impossible.");
+    }
+    return payload;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("Le bot/API ne repond pas.");
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return payload;
 }
 
 async function fetchDiscordUser(accessToken) {
@@ -1182,22 +1199,26 @@ async function submitInvoiceForm(form, label) {
 memberSearch.oninput = renderMembersSidebar;
 
 async function init() {
-  await loadDashboardConfig();
-  await handleDiscordCallback();
+  renderAll();
+
+  try {
+    await loadDashboardConfig();
+    await handleDiscordCallback();
+  } catch (error) {
+    addNotification("Dashboard", error instanceof Error ? error.message : "Chargement partiel.");
+    saveState();
+  }
+
+  renderAll();
 
   try {
     await syncMembers();
     await syncPoliceEvents();
-  } catch {
-    // Les notifications sont deja gerees dans les fonctions de sync.
-  }
-
-  if (state.session.userId) {
-    try {
+    if (state.session.userId) {
       await syncDiscordProfile();
-    } catch {
-      // Le dashboard peut quand meme s'afficher hors ligne.
     }
+  } catch {
+    // Le dashboard reste visible meme si le bot n'est pas lance.
   }
 
   renderAll();
