@@ -44,9 +44,14 @@
           <div class="profile-chip">
             <span class="status-dot"></span>
             <div>
-              <strong>Joueur connecte</strong>
-              <small>Citoyen | Aucun acces staff</small>
+              <strong id="profileName">Non connecte</strong>
+              <small id="profileRole">Connexion Discord requise</small>
             </div>
+          </div>
+          <div class="auth-actions">
+            <button class="visual-btn primary" id="discordLoginBtn" type="button">Connexion Discord</button>
+            <button class="visual-btn" id="syncDiscordBtn" type="button">Sync bot</button>
+            <button class="visual-btn" id="logoutBtn" type="button">Deconnexion</button>
           </div>
         </header>
 
@@ -61,15 +66,15 @@
           <div class="hero-stats" aria-label="Resume joueur">
             <article>
               <span>Argent perso</span>
-              <strong>0 $</strong>
+              <strong id="heroBalance">0 $</strong>
             </article>
             <article>
               <span>Entreprise</span>
-              <strong>Aucune</strong>
+              <strong id="heroBusiness">Aucune</strong>
             </article>
             <article>
               <span>Role</span>
-              <strong>Citoyen</strong>
+              <strong id="heroRole">Invite</strong>
             </article>
           </div>
         </section>
@@ -84,10 +89,19 @@
         <section id="jobs" class="module-section"></section>
         <section id="vehicles" class="module-section"></section>
         <section id="market" class="module-section"></section>
+        <section id="police" class="module-section"></section>
         <section id="staff" class="module-section"></section>
         <section id="system" class="module-section"></section>
-        <section id="social" class="module-section"></section>
       </main>
+
+      <aside class="member-sidebar">
+        <div class="member-sidebar-header">
+          <p class="panel-label">Membres Discord</p>
+          <strong id="memberCount">0 en ligne</strong>
+        </div>
+        <input id="memberSearch" class="member-search" placeholder="Rechercher un joueur" />
+        <div id="memberList" class="member-list"></div>
+      </aside>
     </div>
 
     <script src="./app.js"></script>
