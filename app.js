@@ -180,6 +180,8 @@ let dashboardConfig = {
   apiBaseUrl: "http://127.0.0.1:4174",
 };
 
+ensureDashboardDom();
+
 const moduleNav = document.querySelector("#moduleNav");
 const sections = Object.fromEntries(modules.map((module) => [module.id, document.querySelector(`#${module.id}`)]));
 const profileName = document.querySelector("#profileName");
@@ -193,6 +195,37 @@ const heroRole = document.querySelector("#heroRole");
 const memberCount = document.querySelector("#memberCount");
 const memberSearch = document.querySelector("#memberSearch");
 const memberList = document.querySelector("#memberList");
+
+function ensureDashboardDom() {
+  const main = document.querySelector(".main");
+  const shell = document.querySelector(".dashboard-shell");
+
+  if (main) {
+    document.querySelector("#social")?.remove();
+    modules.forEach((module) => {
+      if (!document.querySelector(`#${module.id}`)) {
+        const section = document.createElement("section");
+        section.id = module.id;
+        section.className = "module-section";
+        main.appendChild(section);
+      }
+    });
+  }
+
+  if (shell && !document.querySelector(".member-sidebar")) {
+    const aside = document.createElement("aside");
+    aside.className = "member-sidebar";
+    aside.innerHTML = `
+      <div class="member-sidebar-header">
+        <p class="panel-label">Membres Discord</p>
+        <strong id="memberCount">0 en ligne</strong>
+      </div>
+      <input id="memberSearch" class="member-search" placeholder="Rechercher un joueur" />
+      <div id="memberList" class="member-list"></div>
+    `;
+    shell.appendChild(aside);
+  }
+}
 
 function loadState() {
   try {
@@ -460,6 +493,8 @@ function updateAuthUi() {
 }
 
 function renderMembersSidebar() {
+  if (!memberSearch || !memberList || !memberCount) return;
+
   const query = memberSearch.value.trim().toLowerCase();
   const members = state.members.filter((member) => {
     const name = `${member.displayName} ${member.username}`.toLowerCase();
@@ -1196,7 +1231,9 @@ async function submitInvoiceForm(form, label) {
   renderAll();
 }
 
-memberSearch.oninput = renderMembersSidebar;
+if (memberSearch) {
+  memberSearch.oninput = renderMembersSidebar;
+}
 
 async function init() {
   renderAll();
