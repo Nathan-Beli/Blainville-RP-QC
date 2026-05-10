@@ -16,6 +16,7 @@ const mimeTypes = {
   ".json": "application/json; charset=utf-8",
   ".png": "image/png",
   ".jpg": "image/jpeg",
+  ".ico": "image/x-icon",
   ".jpeg": "image/jpeg",
   ".webp": "image/webp",
   ".svg": "image/svg+xml",
@@ -27,13 +28,14 @@ function loadEnvFile(filePath) {
   return Object.fromEntries(
     readFileSync(filePath, "utf8")
       .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith("#") && line.includes("="))
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith("#") && l.includes("="))
       .map((line) => {
-        const index = line.indexOf("=");
-        const key = line.slice(0, index).trim();
-        const value = line.slice(index + 1).trim().replace(/^["']|["']$/g, "");
-        return [key, value];
+        const i = line.indexOf("=");
+        return [
+          line.slice(0, i).trim(),
+          line.slice(i + 1).trim().replace(/^["']|["']$/g, ""),
+        ];
       })
   );
 }
@@ -43,121 +45,136 @@ Object.assign(process.env, dashboardEnv);
 
 const host = process.env.DASHBOARD_HOST || "0.0.0.0";
 const port = Number(process.env.PORT || process.env.DASHBOARD_PORT || 4173);
-const botApiUrl = process.env.DASHBOARD_BOT_API_URL || process.env.DASHBOARD_API_URL || "http://127.0.0.1:4174";
+const botApiUrl =
+  process.env.DASHBOARD_BOT_API_URL ||
+  process.env.DASHBOARD_API_URL ||
+  "http://127.0.0.1:4174";
+
 const publicApiUrl = process.env.DASHBOARD_PUBLIC_API_URL || "";
+
+let botProcess = null;
 
 function startBot() {
   if (process.env.DASHBOARD_START_BOT === "false") return;
   if (!process.env.DISCORD_TOKEN) {
-    console.warn("DISCORD_TOKEN absent du .env dashboard: le bot ne sera pas lance automatiquement.");
+    console.warn("DISCORD_TOKEN manquant.");
     return;
   }
 
-  const child = spawn(process.execPath, ["src/index.js"], {
+  botProcess = spawn(process.execPath, ["src/index.js"], {
     cwd: botDir,
-    env: {
-      ...process.env,
-      ...dashboardEnv,
-    },
+    env: { ...process.env, ...dashboardEnv },
     stdio: "inherit",
     windowsHide: true,
   });
 
-  child.on("exit", (code) => {
-    console.log(`Bot Discord arrete avec le code ${code}.`);
+  botProcess.on("exit", (code) => {
+    console.log(`Bot arrêté avec code ${code}`);
   });
 }
 
-function sendJson(response, statusCode, payload) {
-  response.writeHead(statusCode, {
+function sendJson(res, code, payload) {
+  res.writeHead(code, {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
   });
-  response.end(JSON.stringify(payload));
+  res.end(JSON.stringify(payload));
 }
 
-function readRequestBody(request) {
+function readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-
-    request.on("data", (chunk) => chunks.push(chunk));
-    request.on("end", () => resolve(Buffer.concat(chunks)));
-    request.on("error", reject);
+    req.on("data", (c) => chunks.push(c));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
   });
 }
 
-async function proxyBotApi(request, response, requestUrl) {
-  const targetUrl = new URL(requestUrl.pathname + requestUrl.search, botApiUrl);
-  const body = request.method === "GET" || request.method === "HEAD" ? undefined : await readRequestBody(request);
-  const botResponse = await fetch(targetUrl, {
-    method: request.method,
-    headers: {
-      "Content-Type": request.headers["content-type"] || "application/json",
-    },
-    body,
-  });
-
-  response.writeHead(botResponse.status, {
-    "Content-Type": botResponse.headers.get("content-type") || "application/json; charset=utf-8",
-    "Cache-Control": "no-store",
-  });
-  response.end(Buffer.from(await botResponse.arrayBuffer()));
-}
-
-async function getSalaryRolesFromBot() {
+async function proxyBotApi(req, res, url) {
   try {
-    const response = await fetch(new URL("/api/dashboard/config", botApiUrl));
-    if (!response.ok) return [];
-    const payload = await response.json();
-    return payload.salaryRoles || [];
-  } catch {
-    return [];
+    const target = new URL(url.pathname + url.search, botApiUrl);
+
+    const body =
+      req.method === "GET" || req.method === "HEAD"
+        ? undefined
+        : await readBody(req);
+
+    const botRes = await fetch(target, {
+      method: req.method,
+      headers: {
+        "Content-Type": req.headers["content-type"] || "application/json",
+      },
+      body,
+    });
+
+    res.writeHead(botRes.status, {
+      "Content-Type":
+        botRes.headers.get("content-type") ||
+        "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+
+    res.end(Buffer.from(await botRes.arrayBuffer()));
+  } catch (err) {
+    console.error("Proxy error:", err.message);
+    sendJson(res, 502, {
+      ok: false,
+      reason: "Bot API inaccessible",
+    });
   }
 }
 
-const server = createServer(async (request, response) => {
+const server = createServer(async (req, res) => {
   try {
-    const requestUrl = new URL(request.url, `http://${host}:${port}`);
+    const url = new URL(req.url, `http://${host}:${port}`);
 
-    if (requestUrl.pathname === "/api/dashboard/config") {
-      sendJson(response, 200, {
+    if (url.pathname === "/api/dashboard/config") {
+      return sendJson(res, 200, {
         clientId: process.env.CLIENT_ID || "",
         guildId: process.env.GUILD_ID || "",
         apiBaseUrl: publicApiUrl,
-        salaryRoles: await getSalaryRolesFromBot(),
       });
-      return;
     }
 
-    if (requestUrl.pathname.startsWith("/api/dashboard/")) {
-      await proxyBotApi(request, response, requestUrl);
-      return;
+    if (url.pathname.startsWith("/api/dashboard/")) {
+      return proxyBotApi(req, res, url);
     }
 
-    const requestPath = requestUrl.pathname === "/" ? "/index.html" : requestUrl.pathname;
-    const normalizedPath = normalize(requestPath).replace(/^(\.\.[/\\])+/, "");
-    const filePath = join(__dirname, normalizedPath);
+    const path = url.pathname === "/" ? "/index.html" : url.pathname;
+    const safePath = normalize(path).replace(/^(\.\.[/\\])+/, "");
+    const filePath = join(__dirname, safePath);
 
     if (!filePath.startsWith(__dirname)) {
-      response.writeHead(403);
-      response.end("Forbidden");
-      return;
+      res.writeHead(403);
+      return res.end("Forbidden");
     }
 
     const file = await readFile(filePath);
-    response.writeHead(200, {
-      "Content-Type": mimeTypes[extname(filePath).toLowerCase()] || "application/octet-stream",
+
+    res.writeHead(200, {
+      "Content-Type":
+        mimeTypes[extname(filePath)] || "application/octet-stream",
       "Cache-Control": "no-store",
     });
-    response.end(file);
-  } catch {
-    response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
-    response.end("Not found");
+
+    res.end(file);
+  } catch (err) {
+    res.writeHead(404);
+    res.end("Not found");
   }
 });
 
 startBot();
 
 server.listen(port, host, () => {
-  console.log(`Dashboard disponible sur http://${host}:${port}/index.html`);
+  console.log(`Dashboard: http://${host}:${port}`);
+});
+
+process.on("SIGINT", () => {
+  if (botProcess) botProcess.kill();
+  process.exit();
+});
+process.on("SIGTERM", () => {
+  if (botProcess) botProcess.kill();
+  process.exit();
 });
