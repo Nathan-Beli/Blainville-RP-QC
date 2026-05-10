@@ -6,6 +6,7 @@ import { dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
 const dashboardEnvPath = join(__dirname, ".env");
 const botDir = resolve(__dirname, "..", "discord-bot");
 
@@ -45,6 +46,7 @@ Object.assign(process.env, dashboardEnv);
 
 const host = process.env.DASHBOARD_HOST || "0.0.0.0";
 const port = Number(process.env.PORT || process.env.DASHBOARD_PORT || 4173);
+
 const botApiUrl =
   process.env.DASHBOARD_BOT_API_URL ||
   process.env.DASHBOARD_API_URL ||
@@ -54,31 +56,40 @@ const publicApiUrl = process.env.DASHBOARD_PUBLIC_API_URL || "";
 
 let botProcess = null;
 
+/* ---------------- BOT START ---------------- */
+
 function startBot() {
   if (process.env.DASHBOARD_START_BOT === "false") return;
   if (!process.env.DISCORD_TOKEN) {
-    console.warn("DISCORD_TOKEN manquant.");
+    console.warn("❌ DISCORD_TOKEN manquant → bot non démarré");
     return;
   }
 
-  botProcess = spawn(process.execPath, ["src/index.js"], {
+  // ✅ FIX IMPORTANT: ne PAS utiliser process.execPath
+  botProcess = spawn("node", ["src/index.js"], {
     cwd: botDir,
     env: { ...process.env, ...dashboardEnv },
     stdio: "inherit",
     windowsHide: true,
   });
 
+  botProcess.on("error", (err) => {
+    console.error("❌ Bot spawn error:", err);
+  });
+
   botProcess.on("exit", (code) => {
-    console.log(`Bot arrêté avec code ${code}`);
+    console.log(`🤖 Bot arrêté (code ${code})`);
   });
 }
 
-function sendJson(res, code, payload) {
+/* ---------------- UTILS ---------------- */
+
+function sendJson(res, code, data) {
   res.writeHead(code, {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
   });
-  res.end(JSON.stringify(payload));
+  res.end(JSON.stringify(data));
 }
 
 function readBody(req) {
@@ -89,6 +100,8 @@ function readBody(req) {
     req.on("error", reject);
   });
 }
+
+/* ---------------- PROXY API BOT ---------------- */
 
 async function proxyBotApi(req, res, url) {
   try {
@@ -116,18 +129,21 @@ async function proxyBotApi(req, res, url) {
 
     res.end(Buffer.from(await botRes.arrayBuffer()));
   } catch (err) {
-    console.error("Proxy error:", err.message);
+    console.error("❌ Proxy error:", err.message);
     sendJson(res, 502, {
       ok: false,
-      reason: "Bot API inaccessible",
+      error: "Bot API unreachable",
     });
   }
 }
+
+/* ---------------- SERVER ---------------- */
 
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${host}:${port}`);
 
+    /* API CONFIG */
     if (url.pathname === "/api/dashboard/config") {
       return sendJson(res, 200, {
         clientId: process.env.CLIENT_ID || "",
@@ -136,10 +152,12 @@ const server = createServer(async (req, res) => {
       });
     }
 
+    /* PROXY BOT API */
     if (url.pathname.startsWith("/api/dashboard/")) {
       return proxyBotApi(req, res, url);
     }
 
+    /* STATIC FILES */
     const path = url.pathname === "/" ? "/index.html" : url.pathname;
     const safePath = normalize(path).replace(/^(\.\.[/\\])+/, "");
     const filePath = join(__dirname, safePath);
@@ -153,7 +171,8 @@ const server = createServer(async (req, res) => {
 
     res.writeHead(200, {
       "Content-Type":
-        mimeTypes[extname(filePath)] || "application/octet-stream",
+        mimeTypes[extname(filePath).toLowerCase()] ||
+        "application/octet-stream",
       "Cache-Control": "no-store",
     });
 
@@ -164,16 +183,22 @@ const server = createServer(async (req, res) => {
   }
 });
 
+/* ---------------- START ---------------- */
+
 startBot();
 
 server.listen(port, host, () => {
-  console.log(`Dashboard: http://${host}:${port}`);
+  console.log(`🚀 Dashboard: http://${host}:${port}`);
 });
 
+/* ---------------- SHUTDOWN ---------------- */
+
 process.on("SIGINT", () => {
+  console.log("🛑 Shutdown...");
   if (botProcess) botProcess.kill();
   process.exit();
 });
+
 process.on("SIGTERM", () => {
   if (botProcess) botProcess.kill();
   process.exit();
