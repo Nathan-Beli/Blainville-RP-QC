@@ -1,9 +1,15 @@
 {
-  "name": "blainville-rp-dashboard",
+  "name": "blainville-rp-qc-bot",
   "version": "1.0.0",
-  "private": true,
-  "type": "module",
+  "description": "Bot Discord bancaire pour Blainville RP QC.",
+  "main": "src/index.js",
+  "type": "commonjs",
   "scripts": {
-    "start": "node server.mjs"
+    "start": "node src/index.js",
+    "deploy": "node src/deploy-commands.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.18.0",
+    "dotenv": "^16.6.1"
   }
 }

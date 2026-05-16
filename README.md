@@ -1,84 +1,138 @@
-# Blainville RP QC - Dashboard
+# Blainville RP QC - Bot Discord Banque
 
-## Lancement
+Bot Discord en Node.js avec `discord.js`.
 
-Utilise:
+## Fonctions incluses
 
-```bat
-start-dashboard.bat
-```
+- `/solde` pour voir son solde.
+- `/banque-menu` pour envoyer le menu bancaire avec les boutons.
+- `/virement` pour envoyer de l'argent avec une mention `@membre`.
+- `/facture-ajouter` pour ajouter une facture a un membre avec le type `amende` ou `entreprise`.
+- `/facture-payer` pour payer une facture.
+- `/staff ajouter-argent` pour ajouter de l'argent a un joueur.
+- `/staff retirer-facture` pour retirer une facture a un joueur.
+- Bouton `Banque` pour voir son compte.
+- Bouton `Prendre mon salaire` avec cooldown de 24 heures.
+- Bouton `Virement` pour envoyer de l'argent a un autre membre avec une mention.
+- Bouton `Facture` pour voir et payer ses factures.
+- Stockage local dans `src/data/bank.json`.
 
-Ce script lance `server.mjs`. Le serveur:
+## Types de factures
 
-- lit le fichier `.env` du dossier dashboard;
-- sert le site sur `http://127.0.0.1:4173/index.html`;
-- lance le bot Discord dans `../discord-bot`;
-- connecte le dashboard a l'API du bot sur `http://127.0.0.1:4174`.
+- `amende`: l'argent est retire du joueur et ne va a personne.
+- `entreprise`: l'argent est retire du joueur et envoye a la personne qui a cree la facture.
 
-## Variables `.env`
+## Staff et logs
 
-Le dashboard attend au minimum:
+- Role staff autorise: `1484018086129696868`.
+- Salon logs: `1498847787540942988`.
+- Seules les sous-commandes `/staff ajouter-argent` et `/staff retirer-facture` envoient des logs.
 
-```env
-DISCORD_TOKEN=token_du_bot
-CLIENT_ID=id_application_discord
-GUILD_ID=id_du_serveur
-```
-
-Options:
-
-```env
-DASHBOARD_HOST=0.0.0.0
-DASHBOARD_PORT=4173
-DASHBOARD_API_URL=http://127.0.0.1:4174
-DASHBOARD_PUBLIC_API_URL=
-DASHBOARD_START_BOT=true
-```
-
-Ne mets jamais le token Discord dans le code front. Le dashboard expose seulement `CLIENT_ID`, `GUILD_ID` et l'URL API.
-
-## GitHub et token
-
-Le fichier `.env` ne doit jamais etre envoye sur GitHub. Il est ignore par `.gitignore`.
-
-Pour partager le projet:
-
-1. garde ton vrai `.env` seulement sur ton PC ou ton serveur;
-2. publie `.env.example`;
-3. sur ton hebergeur, mets `DISCORD_TOKEN`, `CLIENT_ID` et `GUILD_ID` dans les variables d'environnement;
-4. ne mets jamais `DISCORD_TOKEN` dans `app.js`, `index.html` ou un fichier public.
-
-Si tu as deja pousse un token sur GitHub, regenere le token du bot dans Discord Developer Portal.
-
-## Hebergement
-
-Sur un hebergeur, configure la commande de demarrage:
+## Installation
 
 ```bash
-npm start
+npm.cmd install
 ```
 
-Le serveur utilise automatiquement `PORT` si l'hebergeur le fournit.
+Copie `.env.example` vers `.env`, puis remplis:
 
-Pour Discord OAuth, ajoute aussi l'URL hebergee exacte dans le portail Discord, par exemple:
+```env
+DISCORD_TOKEN=ton_token
+CLIENT_ID=id_de_ton_application
+GUILD_ID=id_de_ton_serveur
+```
+
+Ne partage jamais le token du bot.
+
+## GitHub et securite
+
+Le vrai fichier `.env` est ignore par `.gitignore`. Pour GitHub, pousse seulement:
 
 ```txt
-https://ton-domaine.com/index.html
+.env.example
 ```
 
-Laisse `DASHBOARD_PUBLIC_API_URL` vide si le bot est lance par le meme serveur dashboard. Le navigateur utilisera le meme domaine que le site, ce qui evite les problemes avec `127.0.0.1`.
+Si tu heberges le bot, ajoute les secrets directement dans les variables d'environnement de l'hebergeur:
 
-## Discord Developer Portal
+- `DISCORD_TOKEN`
+- `CLIENT_ID`
+- `GUILD_ID`
 
-Ajoute cette Redirect URI OAuth2:
+Si un token a deja ete public sur GitHub, il faut le regenerer dans le Discord Developer Portal.
+
+## Lancer le bot seul
+
+Deploie les commandes slash sur ton serveur:
+
+```bash
+npm.cmd run deploy
+```
+
+Puis demarre le bot:
+
+```bash
+npm.cmd start
+```
+
+Quand le bot est lance, il demarre aussi une API locale pour le dashboard:
+
+```txt
+http://127.0.0.1:4174/api/dashboard/me?userId=ID_DISCORD
+```
+
+Le dashboard doit etre ouvert en local pour la connexion Discord:
 
 ```txt
 http://127.0.0.1:4173/index.html
 ```
 
-Active aussi:
+Dans le portail Discord Developer, ajoute cette Redirect URI OAuth2:
+
+```txt
+http://127.0.0.1:4173/index.html
+```
+
+Le dashboard synchronise automatiquement:
+
+- le nom Discord;
+- les roles Discord;
+- le role dashboard `staff` si le membre a le role `1484018086129696868`;
+- le solde bancaire;
+- les factures du bot.
+
+## Lancer dashboard + bot ensemble
+
+Tu peux maintenant lancer le site depuis:
+
+```txt
+..\blainville-rp-dashboard-visuel\start-dashboard.bat
+```
+
+Le dashboard lit son propre `.env`, lance le bot avec ces infos, puis sert le site sur:
+
+```txt
+http://127.0.0.1:4173/index.html
+```
+
+Active dans le portail Discord:
 
 - Server Members Intent
 - Message Content Intent
 
-Ces intents servent a lire les membres, roles, salaires et messages d'arrestation.
+Le Message Content Intent est necessaire pour afficher les arrestations venant des salons:
+
+- `1482756676745564284`
+- `1482754417173332188`
+
+## Permissions Discord
+
+Invite le bot avec les scopes:
+
+- `bot`
+- `applications.commands`
+
+Permissions utiles:
+
+- View Channels
+- Send Messages
+- Use Slash Commands
