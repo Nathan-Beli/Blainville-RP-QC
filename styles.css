@@ -335,6 +335,23 @@ h1 {
   color: var(--muted);
 }
 
+.cad-highlights {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  max-width: 900px;
+  margin-top: 18px;
+}
+
+.cad-highlights span {
+  display: block;
+  padding: 10px 12px;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .hero-stats {
   display: grid;
   gap: 12px;
@@ -634,6 +651,7 @@ h1 {
   .hero,
   .content-grid,
   .stats-row,
+  .cad-highlights,
   .permit-card {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -654,6 +672,7 @@ h1 {
   .hero,
   .content-grid,
   .stats-row,
+  .cad-highlights,
   .permit-card {
     grid-template-columns: 1fr;
   }

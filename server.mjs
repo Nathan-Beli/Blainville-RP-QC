@@ -44,7 +44,12 @@ function loadEnvFile(filePath) {
 const dashboardEnv = loadEnvFile(dashboardEnvPath);
 Object.assign(process.env, dashboardEnv);
 
-const host = process.env.DASHBOARD_HOST || "0.0.0.0";
+const isRailway = Boolean(
+  process.env.RAILWAY_ENVIRONMENT ||
+    process.env.RAILWAY_SERVICE_ID ||
+    process.env.RAILWAY_PUBLIC_DOMAIN
+);
+const host = isRailway ? "0.0.0.0" : process.env.DASHBOARD_HOST || "0.0.0.0";
 const port = Number(process.env.PORT || process.env.DASHBOARD_PORT || 4173);
 
 const botApiUrl =
@@ -65,8 +70,14 @@ function startBot() {
     return;
   }
 
-  // ✅ FIX IMPORTANT: ne PAS utiliser process.execPath
-  botProcess = spawn("node", ["src/index.js"], {
+  const botEntry = process.env.BOT_ENTRY_PATH || resolve(botDir, "src", "index.js");
+
+  if (!existsSync(botEntry)) {
+    console.warn(`❌ Bot introuvable: ${botEntry}`);
+    return;
+  }
+
+  botProcess = spawn(process.execPath, [botEntry], {
     cwd: botDir,
     env: { ...process.env, ...dashboardEnv },
     stdio: "inherit",
@@ -188,7 +199,10 @@ const server = createServer(async (req, res) => {
 startBot();
 
 server.listen(port, host, () => {
-  console.log(`🚀 Dashboard: http://${host}:${port}`);
+  const publicUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+    : `http://localhost:${port}`;
+  console.log(`🚀 Dashboard: ${publicUrl}`);
 });
 
 /* ---------------- SHUTDOWN ---------------- */
